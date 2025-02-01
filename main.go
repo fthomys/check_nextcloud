@@ -44,6 +44,7 @@ type NextcloudSystem struct {
 	SwapTotal int64         `json:"swap_total"`
 	SwapFree  int64         `json:"swap_free"`
 	Apps      NextcloudApps `json:"apps"`
+	Update    UpdateInfo    `json:"update"`
 }
 
 type NextcloudApps struct {
@@ -84,13 +85,26 @@ type DatabaseInfo struct {
 
 type ActiveUsersInfo struct {
 	Last5minutes int `json:"last5minutes"`
+	Last1hour    int `json:"last1hour"`
+	Last24hours  int `json:"last24hours"`
+	Last7days    int `json:"last7days"`
+	Last1month   int `json:"last1month"`
+	Last3months  int `json:"last3months"`
+	Last6months  int `json:"last6months"`
+	Lastyear     int `json:"lastyear"`
+}
+
+type UpdateInfo struct {
+	LastUpdatedAt    int64  `json:"lastupdatedat"`
+	Available        bool   `json:"available"`
+	AvailableVersion string `json:"available_version"`
 }
 
 func checkNextcloud(serverURL string, ncToken string) {
 	apiURL := fmt.Sprintf("%s/ocs/v2.php/apps/serverinfo/api/v1/info?format=json&skipApps=false&skipUpdate=false", serverURL)
 
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -100,6 +114,7 @@ func checkNextcloud(serverURL string, ncToken string) {
 	}
 	req.Header.Set("NC-Token", ncToken)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "check_nextcloud/1.0")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -194,8 +209,14 @@ func checkNextcloud(serverURL string, ncToken string) {
 		}
 	}
 
+	if sysInfo.Update.Available {
+		status = "WARNING - Nextcloud Update Available (" + sysInfo.Update.AvailableVersion + ")"
+		if exitCode < 1 {
+			exitCode = 1
+		}
+	}
+
 	metrics := map[string]interface{}{
-		"version":                   sysInfo.Version,
 		"num_users":                 ocsResp.OCS.Data.Nextcloud.Storage.NumUsers,
 		"num_files":                 ocsResp.OCS.Data.Nextcloud.Storage.NumFiles,
 		"cpu_load_1m":               sysInfo.Cpuload[0],
@@ -210,9 +231,14 @@ func checkNextcloud(serverURL string, ncToken string) {
 		"num_apps_installed":        sysInfo.Apps.NumInstalled,
 		"num_apps_update_available": sysInfo.Apps.NumUpdatesAvailable,
 		"num_shares":                ocsResp.OCS.Data.Nextcloud.Shares.NumShares,
-		"php_version":               ocsResp.OCS.Data.Server.PHP.Version,
-		"db_version":                ocsResp.OCS.Data.Server.Database.Version,
 		"active_users_5m":           ocsResp.OCS.Data.ActiveUsers.Last5minutes,
+		"active_users_1h":           ocsResp.OCS.Data.ActiveUsers.Last1hour,
+		"active_users_24h":          ocsResp.OCS.Data.ActiveUsers.Last24hours,
+		"active_users_7d":           ocsResp.OCS.Data.ActiveUsers.Last7days,
+		"active_users_1mo":          ocsResp.OCS.Data.ActiveUsers.Last1month,
+		"active_users_3mo":          ocsResp.OCS.Data.ActiveUsers.Last3months,
+		"active_users_6mo":          ocsResp.OCS.Data.ActiveUsers.Last6months,
+		"active_users_1y":           ocsResp.OCS.Data.ActiveUsers.Lastyear,
 		"opcache_hit_rate":          ocsResp.OCS.Data.Server.PHP.Opcache.OpcacheStatistics.OpcacheHitRate,
 	}
 
