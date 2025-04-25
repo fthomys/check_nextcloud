@@ -8,6 +8,8 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -98,6 +100,34 @@ type UpdateInfo struct {
 	LastUpdatedAt    int64  `json:"lastupdatedat"`
 	Available        bool   `json:"available"`
 	AvailableVersion string `json:"available_version"`
+}
+
+func isVersionGreaterThan(currentVersion, compareVersion string) bool {
+	if currentVersion == "" || compareVersion == "" {
+		return false
+	}
+	currentParts := strings.Split(currentVersion, ".")
+	compareParts := strings.Split(compareVersion, ".")
+	for i := 0; i < len(currentParts) && i < len(compareParts); i++ {
+		currentPart := strings.TrimSpace(currentParts[i])
+		comparePart := strings.TrimSpace(compareParts[i])
+		if currentPart == comparePart {
+			continue
+		}
+		currentNum, err1 := strconv.Atoi(currentPart)
+		compareNum, err2 := strconv.Atoi(comparePart)
+		if err1 != nil || err2 != nil {
+			return false
+		}
+		return currentNum > compareNum
+	}
+	if len(currentParts) > len(compareParts) {
+		return true
+	}
+	if len(currentParts) < len(compareParts) {
+		return false
+	}
+	return false
 }
 
 func checkNextcloud(serverURL string, ncToken string) {
@@ -209,7 +239,7 @@ func checkNextcloud(serverURL string, ncToken string) {
 		}
 	}
 
-	if sysInfo.Update.Available {
+	if sysInfo.Update.Available && isVersionGreaterThan(sysInfo.Version, sysInfo.Update.AvailableVersion) {
 		status = "WARNING - Nextcloud Update Available (" + sysInfo.Update.AvailableVersion + ")"
 		if exitCode < 1 {
 			exitCode = 1
