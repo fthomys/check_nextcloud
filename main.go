@@ -102,12 +102,12 @@ type UpdateInfo struct {
 	AvailableVersion string `json:"available_version"`
 }
 
-func isVersionGreaterThan(currentVersion, compareVersion string) bool {
-	if currentVersion == "" || compareVersion == "" {
+func isVersionGreaterThan(updateVersion, installedVersion string) bool {
+	if updateVersion == "" || installedVersion == "" {
 		return false
 	}
-	currentParts := strings.Split(currentVersion, ".")
-	compareParts := strings.Split(compareVersion, ".")
+	currentParts := strings.Split(updateVersion, ".")
+	compareParts := strings.Split(installedVersion, ".")
 	for i := 0; i < len(currentParts) && i < len(compareParts); i++ {
 		currentPart := strings.TrimSpace(currentParts[i])
 		comparePart := strings.TrimSpace(compareParts[i])
@@ -239,7 +239,7 @@ func checkNextcloud(serverURL string, ncToken string) {
 		}
 	}
 
-	if sysInfo.Update.Available && isVersionGreaterThan(sysInfo.Version, sysInfo.Update.AvailableVersion) {
+	if sysInfo.Update.Available && isVersionGreaterThan(sysInfo.Update.AvailableVersion, sysInfo.Version) {
 		status = "WARNING - Nextcloud Update Available (" + sysInfo.Update.AvailableVersion + ")"
 		if exitCode < 1 {
 			exitCode = 1
