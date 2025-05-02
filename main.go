@@ -146,7 +146,7 @@ func checkNextcloud(serverURL string, ncToken string) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "check_nextcloud/1.0")
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //
 	if err != nil {
 		fmt.Printf("CRITICAL - API request failed: %v\n", err)
 		os.Exit(2)
@@ -165,6 +165,14 @@ func checkNextcloud(serverURL string, ncToken string) {
 	}
 
 	body, err := io.ReadAll(resp.Body)
+	if 500 <= resp.StatusCode && resp.StatusCode < 600 {
+		fmt.Printf("CRITICAL - Server error (HTTP %d)\n", resp.StatusCode)
+		os.Exit(2)
+	}
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("CRITICAL - API request failed (HTTP %d)\n", resp.StatusCode)
+		os.Exit(2)
+	}
 	if err != nil {
 		fmt.Printf("CRITICAL - Failed to read API response: %v\n", err)
 		os.Exit(2)
