@@ -198,9 +198,7 @@ func checkNextcloud(serverURL string, ncToken string) {
 	if len(sysInfo.Cpuload) >= 3 {
 		if sysInfo.Cpuload[0] > 5 || sysInfo.Cpuload[1] > 4 || sysInfo.Cpuload[2] > 3 {
 			status = "WARNING - High CPU Load"
-			if exitCode < 1 {
-				exitCode = 1
-			}
+			exitCode = 1
 		}
 	}
 
@@ -212,14 +210,10 @@ func checkNextcloud(serverURL string, ncToken string) {
 	}
 	if memUsage > 90 {
 		status = "CRITICAL - High Memory Usage"
-		if exitCode < 2 {
-			exitCode = 2
-		}
+		exitCode = 2
 	} else if memUsage > 80 {
 		status = "WARNING - High Memory Usage"
-		if exitCode < 1 {
-			exitCode = 1
-		}
+		exitCode = 1
 	}
 
 	swapTotal := sysInfo.SwapTotal
