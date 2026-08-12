@@ -130,7 +130,7 @@ func isVersionGreaterThan(updateVersion, installedVersion string) bool {
 	return false
 }
 
-func checkNextcloud(serverURL string, ncToken string) {
+func checkNextcloud(serverURL string, ncToken string) int {
 	apiURL := fmt.Sprintf("%s/ocs/v2.php/apps/serverinfo/api/v1/info?format=json&skipApps=false&skipUpdate=false", serverURL)
 
 	client := &http.Client{
@@ -140,54 +140,48 @@ func checkNextcloud(serverURL string, ncToken string) {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		fmt.Printf("CRITICAL - Failed to create request: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
 	req.Header.Set("NC-Token", ncToken)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "check_nextcloud/1.0")
 
-	resp, err := client.Do(req) //
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("CRITICAL - API request failed: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Printf("CRITICAL - Failed to close response body: %v\n", err)
-			os.Exit(2)
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("CRITICAL - Failed to read API response: %v\n", err)
+		return 2
+	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		fmt.Println("CRITICAL - Unauthorized access (401)")
-		os.Exit(2)
+		return 2
 	}
-
-	body, err := io.ReadAll(resp.Body)
 	if 500 <= resp.StatusCode && resp.StatusCode < 600 {
 		fmt.Printf("CRITICAL - Server error (HTTP %d)\n", resp.StatusCode)
-		os.Exit(2)
+		return 2
 	}
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("CRITICAL - API request failed (HTTP %d)\n", resp.StatusCode)
-		os.Exit(2)
-	}
-	if err != nil {
-		fmt.Printf("CRITICAL - Failed to read API response: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
 
 	var ocsResp OCSResponse
 	err = json.Unmarshal(body, &ocsResp)
 	if err != nil {
 		fmt.Printf("CRITICAL - Failed to parse API response: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
 
 	if ocsResp.OCS.Data.Nextcloud.System.Version == "" {
 		fmt.Println("CRITICAL - Invalid API response")
-		os.Exit(2)
+		return 2
 	}
 
 	status := "OK"
@@ -248,39 +242,52 @@ func checkNextcloud(serverURL string, ncToken string) {
 		}
 	}
 
-	metrics := map[string]interface{}{
-		"num_users":                 ocsResp.OCS.Data.Nextcloud.Storage.NumUsers,
-		"num_files":                 ocsResp.OCS.Data.Nextcloud.Storage.NumFiles,
-		"cpu_load_1m":               sysInfo.Cpuload[0],
-		"cpu_load_5m":               sysInfo.Cpuload[1],
-		"cpu_load_15m":              sysInfo.Cpuload[2],
-		"memory_total":              memTotal,
-		"memory_free":               memFree,
-		"memory_usage_percent":      math.Round(memUsage*100) / 100,
-		"swap_total":                swapTotal,
-		"swap_free":                 swapFree,
-		"swap_usage_percent":        math.Round(swapUsage*100) / 100,
-		"num_apps_installed":        sysInfo.Apps.NumInstalled,
-		"num_apps_update_available": sysInfo.Apps.NumUpdatesAvailable,
-		"num_shares":                ocsResp.OCS.Data.Nextcloud.Shares.NumShares,
-		"active_users_5m":           ocsResp.OCS.Data.ActiveUsers.Last5minutes,
-		"active_users_1h":           ocsResp.OCS.Data.ActiveUsers.Last1hour,
-		"active_users_24h":          ocsResp.OCS.Data.ActiveUsers.Last24hours,
-		"active_users_7d":           ocsResp.OCS.Data.ActiveUsers.Last7days,
-		"active_users_1mo":          ocsResp.OCS.Data.ActiveUsers.Last1month,
-		"active_users_3mo":          ocsResp.OCS.Data.ActiveUsers.Last3months,
-		"active_users_6mo":          ocsResp.OCS.Data.ActiveUsers.Last6months,
-		"active_users_1y":           ocsResp.OCS.Data.ActiveUsers.Lastyear,
-		"opcache_hit_rate":          ocsResp.OCS.Data.Server.PHP.Opcache.OpcacheStatistics.OpcacheHitRate,
+	type metric struct {
+		Key   string
+		Value interface{}
 	}
+
+	metrics := []metric{
+		{"num_users", ocsResp.OCS.Data.Nextcloud.Storage.NumUsers},
+		{"num_files", ocsResp.OCS.Data.Nextcloud.Storage.NumFiles},
+	}
+	if len(sysInfo.Cpuload) >= 3 {
+		metrics = append(metrics,
+			metric{"cpu_load_1m", sysInfo.Cpuload[0]},
+			metric{"cpu_load_5m", sysInfo.Cpuload[1]},
+			metric{"cpu_load_15m", sysInfo.Cpuload[2]},
+		)
+	}
+	metrics = append(metrics,
+		metric{"memory_total", memTotal},
+		metric{"memory_free", memFree},
+		metric{"memory_usage_percent", math.Round(memUsage*100) / 100},
+		metric{"swap_total", swapTotal},
+		metric{"swap_free", swapFree},
+		metric{"swap_usage_percent", math.Round(swapUsage*100) / 100},
+		metric{"num_apps_installed", sysInfo.Apps.NumInstalled},
+		metric{"num_apps_update_available", sysInfo.Apps.NumUpdatesAvailable},
+		metric{"num_shares", ocsResp.OCS.Data.Nextcloud.Shares.NumShares},
+		metric{"active_users_5m", ocsResp.OCS.Data.ActiveUsers.Last5minutes},
+		metric{"active_users_1h", ocsResp.OCS.Data.ActiveUsers.Last1hour},
+		metric{"active_users_24h", ocsResp.OCS.Data.ActiveUsers.Last24hours},
+		metric{"active_users_7d", ocsResp.OCS.Data.ActiveUsers.Last7days},
+		metric{"active_users_1mo", ocsResp.OCS.Data.ActiveUsers.Last1month},
+		metric{"active_users_3mo", ocsResp.OCS.Data.ActiveUsers.Last3months},
+		metric{"active_users_6mo", ocsResp.OCS.Data.ActiveUsers.Last6months},
+		metric{"active_users_1y", ocsResp.OCS.Data.ActiveUsers.Lastyear},
+		metric{"opcache_hit_rate", ocsResp.OCS.Data.Server.PHP.Opcache.OpcacheStatistics.OpcacheHitRate},
+	)
 
 	metricsOutput := " |"
-	for key, value := range metrics {
-		metricsOutput += fmt.Sprintf(" %s=%v", key, value)
+	for _, m := range metrics {
+		metricsOutput += fmt.Sprintf(" %s=%v", m.Key, m.Value)
 	}
 
-	fmt.Printf("%s - Nextcloud %s running.%s\n", status, sysInfo.Version, metricsOutput)
-	os.Exit(exitCode)
+	serverInfo := ocsResp.OCS.Data.Server
+	fmt.Printf("%s - Nextcloud %s (PHP %s, DB %s) running.%s\n",
+		status, sysInfo.Version, serverInfo.PHP.Version, serverInfo.Database.Version, metricsOutput)
+	return exitCode
 }
 
 func main() {
@@ -295,5 +302,5 @@ func main() {
 		os.Exit(2)
 	}
 
-	checkNextcloud(*server, *token)
+	os.Exit(checkNextcloud(*server, *token))
 }

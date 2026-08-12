@@ -5,8 +5,7 @@ This Go-based plugin checks the health of your Nextcloud instance by querying it
 # Features
 
 - **Nextcloud API Check:** Retrieves system, and server details from Nextcloud.
-- **System Metrics:** Uses local system calls to assess disk usage.
-- **Thresholds:** Compares metrics (CPU load, memory usage, and swap usage) against configurable warning and critical thresholds.
+- **Thresholds:** Compares metrics (CPU load, memory usage, and swap usage) against built-in warning and critical thresholds.
 - **Performance Data:** Outputs key metrics in a format that Icinga can ingest.
 
 ## Requirements
@@ -58,7 +57,7 @@ sudo chmod +x /usr/lib/nagios/plugins/check_nextcloud
 You can run the plugin directly from the command line to test it:
 
 ```bash
-/usr/lib/nagios/plugins/check_nextcloud -s https://your-nextcloud-url -t your_nc_token -c 5 -w 25 -d /
+/usr/lib/nagios/plugins/check_nextcloud -s https://your-nextcloud-url -t your_nc_token
 ```
 
 ### Command-Line Options
@@ -119,5 +118,5 @@ Before deploying in production, test the plugin manually:
 You should see an output similar to:
 
 ```
-OK - Nextcloud 30.0.4.1 running. | version=30.0.4.1 num_users=12 num_files=1971 free_space_bytes=894427783168 free_space_percent=75 cpu_load_1m=0.57421875 cpu_load_5m=0.3876953125 cpu_load_15m=0.353515625 memory_total=65643520 memory_free=54658048 memory_usage_percent=16 swap_total=33519616 swap_free=33519616 swap_usage_percent=0 num_apps_installed=50 num_apps_update_available=4 num_shares=0 php_version=8.2.27 db_version=11.4.4 active_users_5m=1 opcache_hit_rate=96.2478999439985
+OK - Nextcloud 30.0.4.1 (PHP 8.2.27, DB 11.4.4) running. | num_users=12 num_files=1971 cpu_load_1m=0.57421875 cpu_load_5m=0.3876953125 cpu_load_15m=0.353515625 memory_total=65643520 memory_free=54658048 memory_usage_percent=16 swap_total=33519616 swap_free=33519616 swap_usage_percent=0 num_apps_installed=50 num_apps_update_available=4 num_shares=0 active_users_5m=1 active_users_1h=1 active_users_24h=3 active_users_7d=8 active_users_1mo=10 active_users_3mo=11 active_users_6mo=12 active_users_1y=12 opcache_hit_rate=96.2478999439985
 ```
